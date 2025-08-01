@@ -30,7 +30,14 @@ A powerful command-line tool for extracting audio from YouTube videos and transc
 
 3. **OpenAI API Key** (optional, for API transcription and summaries)
    - Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-   - Set it as an environment variable: `OPENAI_API_KEY=your_key_here`
+   - Copy `.env.example` to `.env` and add your key:
+     ```bash
+     copy .env.example .env
+     ```
+   - Edit `.env` file:
+     ```
+     OPENAI_API_KEY=your_actual_api_key_here
+     ```
 
 ### Installation
 
@@ -54,6 +61,15 @@ A powerful command-line tool for extracting audio from YouTube videos and transc
 3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
+   ```
+
+4. **Configure API key (optional)**
+   ```bash
+   # Copy the example file
+   copy .env.example .env
+   
+   # Edit .env file and add your OpenAI API key
+   # OPENAI_API_KEY=your_actual_api_key_here
    ```
 
 ### Basic Usage
@@ -185,6 +201,16 @@ choco install ffmpeg
 **"File too large for API"**
 - API has 25MB limit
 - Automatically falls back to local processing
+
+**"API key not found"**
+```bash
+# Test if your API key is loaded correctly
+python test_api_key.py
+
+# Make sure .env file exists and is formatted correctly
+copy .env.example .env
+# Then edit .env with your actual key
+```
 
 **"Local model loading fails"**
 ```bash
