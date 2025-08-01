@@ -230,7 +230,7 @@ Examples:
     finally:
         # Cleanup
         print("\n🧹 Cleaning up...")
-        audio_extractor.cleanup_temp_files()
+        audio_extractor.cleanup()
         transcriber.cleanup()
 
 
