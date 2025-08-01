@@ -108,7 +108,7 @@ Examples:
     
     parser.add_argument(
         "--gpt-model",
-        choices=["gpt-3.5-turbo", "gpt-4"],
+        choices=["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
         default="gpt-3.5-turbo",
         help="GPT model for summarization (default: gpt-3.5-turbo)"
     )

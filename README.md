@@ -79,10 +79,10 @@ A powerful command-line tool for extracting audio from YouTube videos and transc
 # Interactive mode (recommended for beginners)
 python interactive_cli.py
 
-# Direct command line usage
-python yt2transcript.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# Quick test with a short video
+python yt2transcript.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --backend local --model-size tiny
 
-# Use OpenAI API
+# Use OpenAI API (faster for long videos)
 python yt2transcript.py "https://youtu.be/dQw4w9WgXcQ" --backend api
 
 # With summary

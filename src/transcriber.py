@@ -94,22 +94,79 @@ class Transcriber:
             print("Transcribing with OpenAI Whisper API...")
             
             with open(audio_path, 'rb') as audio_file:
-                # Using the new OpenAI client format
+                # Using the new OpenAI client format with verbose_json for timestamps
                 client = openai.OpenAI(api_key=self.api_key)
-                response = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    response_format="verbose_json"
-                )
+                
+                # Try with word-level timestamps first
+                try:
+                    response = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        response_format="verbose_json",
+                        timestamp_granularities=["word"]  # Request word-level timestamps
+                    )
+                except Exception as word_error:
+                    print("Word-level timestamps not supported, trying segment-level...")
+                    # Fallback to standard verbose_json if word timestamps aren't supported
+                    response = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        response_format="verbose_json"
+                    )
+            
+            # Extract segments and words from the API response
+            segments = []
+            if hasattr(response, 'words') and response.words:
+                # Group words into segments (sentences/phrases)
+                current_segment = []
+                current_start = None
+                current_end = None
+                
+                for word in response.words:
+                    if current_start is None:
+                        current_start = word.start
+                    current_end = word.end
+                    current_segment.append(word.word)
+                    
+                    # Create a segment every ~10 words or at sentence boundaries
+                    if len(current_segment) >= 10 or word.word.strip().endswith(('.', '!', '?')):
+                        segments.append({
+                            'start': current_start,
+                            'end': current_end,
+                            'text': ' '.join(current_segment).strip()
+                        })
+                        current_segment = []
+                        current_start = None
+                        current_end = None
+                
+                # Add any remaining words as a final segment
+                if current_segment:
+                    segments.append({
+                        'start': current_start,
+                        'end': current_end,
+                        'text': ' '.join(current_segment).strip()
+                    })
+            
+            elif hasattr(response, 'segments') and response.segments:
+                # Use segments if available
+                for segment in response.segments:
+                    segments.append({
+                        'start': segment.start,
+                        'end': segment.end, 
+                        'text': segment.text.strip()
+                    })
             
             # Convert response to our standard format
             result = {
                 'text': response.text,
-                'segments': [],  # API doesn't provide detailed segments
+                'segments': segments,
                 'language': getattr(response, 'language', 'en')
             }
             
-            print("API transcription completed successfully!")
+            if segments:
+                print(f"API transcription completed with {len(segments)} timestamped segments!")
+            else:
+                print("API transcription completed (no timing data available)")
             return result
             
         except Exception as e:
