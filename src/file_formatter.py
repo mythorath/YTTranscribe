@@ -103,11 +103,47 @@ class FileFormatter:
             print(f"Error creating VTT file: {e}")
             return False
     
-    def save_transcript(self, text: str, output_path: str) -> bool:
-        """Save raw transcript text to file."""
+    def save_transcript(self, text: str, output_path: str, segments: List[Dict[str, Any]] = None) -> bool:
+        """
+        Save transcript in standard transcription format.
+        
+        Args:
+            text: The full transcript text
+            output_path: Path to save the transcript
+            segments: Optional segment data with timestamps for formatted output
+        """
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(text)
+                if segments and len(segments) > 0:
+                    # Create formatted transcript with timestamps
+                    f.write("TRANSCRIPT\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    for i, segment in enumerate(segments):
+                        start_time = self.format_timestamp(segment['start'], srt_format=False)
+                        end_time = self.format_timestamp(segment['end'], srt_format=False)
+                        segment_text = segment['text'].strip()
+                        
+                        if segment_text:  # Only write non-empty segments
+                            f.write(f"[{start_time} -> {end_time}]\n")
+                            f.write(f"{segment_text}\n\n")
+                    
+                    # Add full text section at the end
+                    f.write("\n" + "=" * 50 + "\n")
+                    f.write("FULL TRANSCRIPT (Plain Text)\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    # Format the text into paragraphs
+                    formatted_text = self._format_text_into_paragraphs(text)
+                    f.write(formatted_text)
+                else:
+                    # Fallback for API mode or when no segments available
+                    f.write("TRANSCRIPT\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    # Format the text into paragraphs
+                    formatted_text = self._format_text_into_paragraphs(text)
+                    f.write(formatted_text)
             
             print(f"Transcript saved: {output_path}")
             return True
@@ -115,6 +151,64 @@ class FileFormatter:
         except Exception as e:
             print(f"Error saving transcript: {e}")
             return False
+    
+    def _format_text_into_paragraphs(self, text: str, max_line_length: int = 80, sentences_per_paragraph: int = 4) -> str:
+        """
+        Format raw transcript text into readable paragraphs.
+        
+        Args:
+            text: Raw transcript text
+            max_line_length: Maximum characters per line
+            sentences_per_paragraph: Number of sentences per paragraph
+        """
+        import re
+        
+        # Split into sentences (basic sentence detection)
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        formatted_text = ""
+        current_paragraph = []
+        
+        for sentence in sentences:
+            current_paragraph.append(sentence)
+            
+            # Create paragraph after specified number of sentences
+            if len(current_paragraph) >= sentences_per_paragraph:
+                paragraph_text = ' '.join(current_paragraph)
+                formatted_text += self._wrap_paragraph(paragraph_text, max_line_length)
+                current_paragraph = []
+        
+        # Handle remaining sentences
+        if current_paragraph:
+            paragraph_text = ' '.join(current_paragraph)
+            formatted_text += self._wrap_paragraph(paragraph_text, max_line_length)
+        
+        return formatted_text
+    
+    def _wrap_paragraph(self, paragraph_text: str, max_line_length: int) -> str:
+        """Wrap a paragraph to specified line length."""
+        if len(paragraph_text) <= max_line_length:
+            return paragraph_text + '\n\n'
+        
+        words = paragraph_text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            if current_length + len(word) + 1 > max_line_length and current_line:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = len(word)
+            else:
+                current_line.append(word)
+                current_length += len(word) + (1 if current_line else 0)
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return '\n'.join(lines) + '\n\n'
     
     def create_summary(self, transcript_text: str, output_path: str, model: str = "gpt-3.5-turbo") -> bool:
         """
@@ -191,8 +285,9 @@ Summary:"""
         
         results = {}
         
-        # Save transcript text
-        if self.save_transcript(transcription_result['text'], paths['txt']):
+        # Save transcript text with segments for formatting
+        segments = transcription_result.get('segments', [])
+        if self.save_transcript(transcription_result['text'], paths['txt'], segments):
             results['txt'] = paths['txt']
         
         # Save SRT and VTT files

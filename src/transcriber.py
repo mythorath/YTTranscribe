@@ -216,6 +216,77 @@ class Transcriber:
         else:
             raise TranscriptionError(f"Unknown backend: {backend}")
     
+    def transcribe_chunked_audio(self, chunk_paths: List[str], backend: str = "local", model_size: str = "base") -> Dict[str, Any]:
+        """
+        Transcribe multiple audio chunks and combine results.
+        
+        Args:
+            chunk_paths: List of paths to audio chunks
+            backend: Transcription backend to use
+            model_size: Model size for local transcription
+            
+        Returns:
+            Combined transcription result
+        """
+        print(f"Transcribing {len(chunk_paths)} audio chunks...")
+        
+        combined_segments = []
+        combined_text_parts = []
+        total_duration = 0.0
+        chunk_duration_offset = 0.0
+        
+        for i, chunk_path in enumerate(chunk_paths):
+            print(f"\nProcessing chunk {i+1}/{len(chunk_paths)}: {os.path.basename(chunk_path)}")
+            
+            try:
+                # Transcribe individual chunk
+                chunk_result = self.transcribe(chunk_path, backend, model_size)
+                
+                # Adjust timestamps to account for chunk position
+                if 'segments' in chunk_result and chunk_result['segments']:
+                    for segment in chunk_result['segments']:
+                        adjusted_segment = {
+                            'start': segment['start'] + chunk_duration_offset,
+                            'end': segment['end'] + chunk_duration_offset,
+                            'text': segment['text'],
+                            'words': segment.get('words', [])
+                        }
+                        combined_segments.append(adjusted_segment)
+                
+                # Add text part
+                if chunk_result.get('text'):
+                    combined_text_parts.append(chunk_result['text'])
+                
+                # Update duration offset for next chunk
+                if 'duration' in chunk_result:
+                    chunk_duration_offset += chunk_result['duration']
+                    total_duration += chunk_result['duration']
+                else:
+                    # Estimate chunk duration (10 minutes default)
+                    estimated_duration = 600.0  # 10 minutes
+                    chunk_duration_offset += estimated_duration
+                    total_duration += estimated_duration
+                
+                print(f"  Chunk {i+1} completed ({len(chunk_result.get('segments', []))} segments)")
+                
+            except Exception as e:
+                print(f"  Warning: Failed to transcribe chunk {i+1}: {e}")
+                continue
+        
+        # Combine all results
+        combined_text = ' '.join(combined_text_parts)
+        
+        result = {
+            'text': combined_text,
+            'segments': combined_segments,
+            'language': 'en',  # Default to English
+            'duration': total_duration,
+            'chunk_count': len(chunk_paths)
+        }
+        
+        print(f"\nCombined transcription: {len(combined_segments)} total segments, {total_duration:.1f}s duration")
+        return result
+    
     def cleanup(self):
         """Clean up loaded models and resources."""
         if self.local_model is not None:

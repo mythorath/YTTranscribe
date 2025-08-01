@@ -159,11 +159,34 @@ Examples:
         print(f"\n🎤 Step 2: Transcribing with {args.backend} backend...")
         
         try:
-            transcription_result = transcriber.transcribe(
-                audio_path, 
-                backend=args.backend, 
-                model_size=args.model_size
-            )
+            # Check if file is extremely large and might need chunking
+            file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+            
+            # For very large files (>100MB), use chunking for local transcription
+            if file_size_mb > 100 and args.backend in ["local", "auto"]:
+                print(f"Large file detected ({file_size_mb:.1f}MB). Using chunked processing...")
+                chunk_paths = audio_extractor.split_audio_for_processing(audio_path, chunk_duration_minutes=10)
+                
+                if len(chunk_paths) > 1:
+                    transcription_result = transcriber.transcribe_chunked_audio(
+                        chunk_paths, 
+                        backend="local", 
+                        model_size=args.model_size
+                    )
+                else:
+                    # Fallback to normal processing if chunking failed
+                    transcription_result = transcriber.transcribe(
+                        audio_path, 
+                        backend=args.backend, 
+                        model_size=args.model_size
+                    )
+            else:
+                # Normal processing for smaller files
+                transcription_result = transcriber.transcribe(
+                    audio_path, 
+                    backend=args.backend, 
+                    model_size=args.model_size
+                )
         except TranscriptionError as e:
             if args.backend == "api":
                 print(f"❌ API transcription failed: {e}")

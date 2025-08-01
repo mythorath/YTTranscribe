@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 import tempfile
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import yt_dlp
 from tqdm import tqdm
@@ -164,6 +164,75 @@ class AudioExtractor:
         except subprocess.CalledProcessError as e:
             print(f"Compression failed: {e}")
             return audio_path
+    
+    def split_audio_for_processing(self, audio_path: str, chunk_duration_minutes: int = 10) -> List[str]:
+        """
+        Split large audio files into smaller chunks for processing.
+        
+        Args:
+            audio_path: Path to the audio file to split
+            chunk_duration_minutes: Duration of each chunk in minutes
+            
+        Returns:
+            List of paths to audio chunks
+        """
+        try:
+            print(f"Splitting audio into {chunk_duration_minutes}-minute chunks...")
+            
+            # Get audio duration first
+            cmd_duration = [
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                '-of', 'csv=p=0', audio_path
+            ]
+            
+            result = subprocess.run(cmd_duration, capture_output=True, text=True, check=True)
+            total_duration = float(result.stdout.strip())
+            chunk_duration_seconds = chunk_duration_minutes * 60
+            
+            print(f"Total duration: {total_duration:.1f}s, chunk size: {chunk_duration_seconds}s")
+            
+            chunk_paths = []
+            chunk_count = int(total_duration / chunk_duration_seconds) + 1
+            
+            filename = os.path.basename(audio_path)
+            name, _ = os.path.splitext(filename)
+            
+            for i in range(chunk_count):
+                start_time = i * chunk_duration_seconds
+                
+                # Don't create chunk if start time exceeds total duration
+                if start_time >= total_duration:
+                    break
+                    
+                chunk_filename = f"{name}_chunk_{i+1:03d}.m4a"
+                chunk_path = os.path.join(self.temp_dir, chunk_filename)
+                
+                cmd = [
+                    'ffmpeg', '-i', audio_path,
+                    '-ss', str(start_time),
+                    '-t', str(chunk_duration_seconds),
+                    '-c', 'copy',  # Copy without re-encoding when possible
+                    '-y',  # Overwrite output
+                    chunk_path
+                ]
+                
+                print(f"Creating chunk {i+1}/{chunk_count}...")
+                subprocess.run(cmd, check=True, capture_output=True)
+                
+                if os.path.exists(chunk_path):
+                    chunk_paths.append(chunk_path)
+                    chunk_size_mb = os.path.getsize(chunk_path) / (1024 * 1024)
+                    print(f"  Created: {chunk_filename} ({chunk_size_mb:.1f}MB)")
+            
+            print(f"Audio split into {len(chunk_paths)} chunks")
+            return chunk_paths
+            
+        except subprocess.CalledProcessError as e:
+            print(f"Error splitting audio: {e}")
+            return [audio_path]  # Return original file if splitting fails
+        except Exception as e:
+            print(f"Unexpected error splitting audio: {e}")
+            return [audio_path]
     
     def cleanup(self):
         """Clean up temporary files."""
