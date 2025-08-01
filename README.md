@@ -110,10 +110,13 @@ start_interactive.bat
 The interactive CLI provides:
 - 📥 **URL Input**: Guided YouTube URL entry with validation
 - 🎤 **Mode Selection**: Choose between Auto/API/Local transcription
-- 🤖 **Model Selection**: Pick the best model for your needs
+- 🏠 **Local Model Selection**: Pick model size for offline transcription (tiny to large)
+- 🤖 **GPT Model Selection**: Choose GPT model for AI summaries (only when summary requested)
 - 📁 **Output Options**: Customize directory and summary generation
 - 🔑 **API Key Detection**: Automatic OpenAI API key validation
 - ✅ **Command Preview**: See the exact command before execution
+
+> **Note**: The CLI only prompts for GPT model selection when you request an AI summary. For Whisper transcription, the API automatically uses OpenAI's `whisper-1` model (no selection needed).
 
 ## 📋 Command-Line Options
 
