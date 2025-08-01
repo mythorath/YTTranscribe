@@ -1,0 +1,10 @@
+# Core dependencies for YT2TranscriptBot
+yt-dlp>=2023.12.30
+openai>=1.3.0
+tqdm>=4.65.0
+faster-whisper>=0.10.0
+pydub>=0.25.1
+
+# System dependency (install separately):
+# ffmpeg - required for audio processing
+# Install via: choco install ffmpeg (Windows) or brew install ffmpeg (macOS)

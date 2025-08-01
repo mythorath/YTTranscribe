@@ -1,0 +1,199 @@
+"""
+Transcription module supporting both OpenAI Whisper API and local faster-whisper.
+"""
+
+import os
+import tempfile
+from typing import Dict, List, Optional, Any
+import logging
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("Warning: OpenAI library not available. API transcription will not work.")
+
+try:
+    from faster_whisper import WhisperModel
+    FASTER_WHISPER_AVAILABLE = True
+except ImportError:
+    FASTER_WHISPER_AVAILABLE = False
+    print("Warning: faster-whisper library not available. Local transcription will not work.")
+
+
+class TranscriptionError(Exception):
+    """Custom exception for transcription errors."""
+    pass
+
+
+class Transcriber:
+    """Handles audio transcription using OpenAI API or local faster-whisper."""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.local_model = None
+        
+        if self.api_key and OPENAI_AVAILABLE:
+            openai.api_key = self.api_key
+    
+    def check_audio_file(self, audio_path: str) -> bool:
+        """Check if audio file exists and has reasonable duration."""
+        if not os.path.exists(audio_path):
+            raise TranscriptionError(f"Audio file not found: {audio_path}")
+        
+        file_size = os.path.getsize(audio_path)
+        if file_size < 1000:  # Less than 1KB is probably too small
+            raise TranscriptionError(f"Audio file too small: {file_size} bytes")
+        
+        return True
+    
+    def transcribe_with_api(self, audio_path: str) -> Dict[str, Any]:
+        """Transcribe audio using OpenAI Whisper API."""
+        if not OPENAI_AVAILABLE:
+            raise TranscriptionError("OpenAI library not available")
+        
+        if not self.api_key:
+            raise TranscriptionError("OpenAI API key not provided")
+        
+        self.check_audio_file(audio_path)
+        
+        # Check file size limit (25MB for OpenAI API)
+        file_size = os.path.getsize(audio_path)
+        max_size = 25 * 1024 * 1024  # 25MB
+        
+        if file_size > max_size:
+            raise TranscriptionError(f"File too large for API: {file_size / (1024*1024):.1f}MB > 25MB")
+        
+        try:
+            print("Transcribing with OpenAI Whisper API...")
+            
+            with open(audio_path, 'rb') as audio_file:
+                # Using the new OpenAI client format
+                client = openai.OpenAI(api_key=self.api_key)
+                response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="verbose_json"
+                )
+            
+            # Convert response to our standard format
+            result = {
+                'text': response.text,
+                'segments': [],  # API doesn't provide detailed segments
+                'language': getattr(response, 'language', 'en')
+            }
+            
+            print("API transcription completed successfully!")
+            return result
+            
+        except Exception as e:
+            raise TranscriptionError(f"OpenAI API transcription failed: {str(e)}")
+    
+    def transcribe_with_local(self, audio_path: str, model_size: str = "base") -> Dict[str, Any]:
+        """Transcribe audio using local faster-whisper."""
+        if not FASTER_WHISPER_AVAILABLE:
+            raise TranscriptionError("faster-whisper library not available")
+        
+        self.check_audio_file(audio_path)
+        
+        try:
+            print(f"Loading local Whisper model ({model_size})...")
+            
+            # Initialize model if not already done
+            if self.local_model is None or getattr(self.local_model, 'model_size', None) != model_size:
+                self.local_model = WhisperModel(
+                    model_size, 
+                    device="cpu",  # Use CPU by default for compatibility
+                    compute_type="int8"  # Optimize for speed/memory
+                )
+                self.local_model.model_size = model_size  # Store for reference
+            
+            print("Transcribing with local Whisper...")
+            
+            # Transcribe with simpler settings first
+            segments_generator, info = self.local_model.transcribe(
+                audio_path,
+                language="en",  # Force English as specified
+                vad_filter=False,  # Disable VAD initially to see if that's the issue
+                beam_size=5,
+                temperature=0.0
+            )
+            
+            print(f"Audio info - Duration: {info.duration:.1f}s, Language: {info.language}")
+            
+            # Convert segments generator to list and process
+            result_segments = []
+            full_text = []
+            
+            # Convert generator to list to ensure we can iterate through it
+            segments_list = list(segments_generator)
+            print(f"Found {len(segments_list)} segments to process")
+            
+            for i, segment in enumerate(segments_list):
+                segment_text = segment.text.strip()
+                print(f"Segment {i}: '{segment_text}' ({segment.start:.1f}s - {segment.end:.1f}s)")
+                if segment_text:  # Only process non-empty segments
+                    segment_data = {
+                        'start': segment.start,
+                        'end': segment.end,
+                        'text': segment_text,
+                        'words': []
+                    }
+                    
+                    result_segments.append(segment_data)
+                    full_text.append(segment_text)
+            
+            # Join all text segments
+            final_text = ' '.join(full_text)
+            
+            result = {
+                'text': final_text,
+                'segments': result_segments,
+                'language': info.language,
+                'duration': info.duration
+            }
+            
+            print(f"Local transcription completed! Duration: {info.duration:.1f}s, Language: {info.language}")
+            print(f"Extracted {len(result_segments)} segments, {len(final_text)} characters of text")
+            return result
+            
+        except Exception as e:
+            raise TranscriptionError(f"Local transcription failed: {str(e)}")
+    
+    def transcribe(self, audio_path: str, backend: str = "local", model_size: str = "base") -> Dict[str, Any]:
+        """
+        Main transcription method that chooses backend automatically or uses specified backend.
+        
+        Args:
+            audio_path: Path to audio file
+            backend: "api", "local", or "auto"
+            model_size: Model size for local transcription ("tiny", "base", "small", "medium", "large")
+            
+        Returns:
+            Dictionary with 'text', 'segments', and other metadata
+        """
+        if backend == "auto":
+            # Try API first if available, fallback to local
+            if self.api_key and OPENAI_AVAILABLE:
+                try:
+                    return self.transcribe_with_api(audio_path)
+                except TranscriptionError as e:
+                    print(f"API transcription failed, falling back to local: {e}")
+                    backend = "local"
+            else:
+                backend = "local"
+        
+        if backend == "api":
+            return self.transcribe_with_api(audio_path)
+        elif backend == "local":
+            return self.transcribe_with_local(audio_path, model_size)
+        else:
+            raise TranscriptionError(f"Unknown backend: {backend}")
+    
+    def cleanup(self):
+        """Clean up loaded models and resources."""
+        if self.local_model is not None:
+            # faster-whisper doesn't need explicit cleanup, but we can clear the reference
+            self.local_model = None
+            print("Local model cleaned up")
