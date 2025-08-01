@@ -37,9 +37,10 @@ class TranscriptionError(Exception):
 class Transcriber:
     """Handles audio transcription using OpenAI API or local faster-whisper."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, audio_extractor=None):
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.local_model = None
+        self.audio_extractor = audio_extractor
         
         if self.api_key and OPENAI_AVAILABLE:
             openai.api_key = self.api_key
@@ -50,9 +51,12 @@ class Transcriber:
             raise TranscriptionError(f"Audio file not found: {audio_path}")
         
         file_size = os.path.getsize(audio_path)
+        file_size_mb = file_size / (1024 * 1024)
+        
         if file_size < 1000:  # Less than 1KB is probably too small
             raise TranscriptionError(f"Audio file too small: {file_size} bytes")
         
+        print(f"Audio file size: {file_size_mb:.1f} MB")
         return True
     
     def transcribe_with_api(self, audio_path: str) -> Dict[str, Any]:
@@ -65,12 +69,26 @@ class Transcriber:
         
         self.check_audio_file(audio_path)
         
-        # Check file size limit (25MB for OpenAI API)
+        # Check file size limit (25MB for OpenAI API) and compress if needed
         file_size = os.path.getsize(audio_path)
         max_size = 25 * 1024 * 1024  # 25MB
+        file_size_mb = file_size / (1024 * 1024)
         
         if file_size > max_size:
-            raise TranscriptionError(f"File too large for API: {file_size / (1024*1024):.1f}MB > 25MB")
+            if self.audio_extractor and hasattr(self.audio_extractor, 'compress_audio_for_api'):
+                print(f"File too large for API ({file_size_mb:.1f}MB > 25MB). Attempting compression...")
+                audio_path = self.audio_extractor.compress_audio_for_api(audio_path)
+                
+                # Check if compression worked
+                compressed_size = os.path.getsize(audio_path)
+                compressed_size_mb = compressed_size / (1024 * 1024)
+                
+                if compressed_size > max_size:
+                    raise TranscriptionError(f"File too large for API even after compression: {compressed_size_mb:.1f}MB > 25MB. Use --backend local for large files.")
+                else:
+                    print(f"Successfully compressed to {compressed_size_mb:.1f}MB")
+            else:
+                raise TranscriptionError(f"File too large for API: {file_size_mb:.1f}MB > 25MB. Use --backend local for large files.")
         
         try:
             print("Transcribing with OpenAI Whisper API...")

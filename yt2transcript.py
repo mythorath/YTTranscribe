@@ -135,7 +135,7 @@ Examples:
     # Initialize components
     api_key = args.api_key or os.getenv('OPENAI_API_KEY')
     audio_extractor = AudioExtractor(args.output_dir)
-    transcriber = Transcriber(api_key)
+    transcriber = Transcriber(api_key, audio_extractor)
     formatter = FileFormatter(api_key)
     
     try:

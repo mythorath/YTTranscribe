@@ -8,7 +8,8 @@ A powerful command-line tool for extracting audio from YouTube videos and transc
 - 🎤 **Dual Transcription**: OpenAI Whisper API or local `faster-whisper`
 - 📄 **Multiple Formats**: Outputs `.txt`, `.srt`, and `.vtt` files
 - 🧠 **AI Summarization**: Optional GPT-powered summaries
-- 🛡️ **Robust Error Handling**: Graceful fallbacks and user-friendly messages
+- � **Large File Handling**: Automatic compression for files >25MB when using API
+- �🛡️ **Robust Error Handling**: Graceful fallbacks and user-friendly messages
 - 🔧 **Cross-Platform**: Works on Windows, macOS, and Linux
 
 ## 🚀 Quick Start
@@ -199,8 +200,9 @@ choco install ffmpeg
 - Consider using `--backend local` instead
 
 **"File too large for API"**
-- API has 25MB limit
-- Automatically falls back to local processing
+- API has 25MB limit, but tool automatically compresses large files
+- If compression fails, it automatically falls back to local processing
+- For extremely large files, use `--backend local` directly
 
 **"API key not found"**
 ```bash

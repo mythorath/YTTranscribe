@@ -76,7 +76,7 @@ class AudioExtractor:
             raise Exception("Failed to extract video information")
         
         safe_title = self.create_safe_filename(title)
-        audio_filename = f"{video_id}.wav"  # Updated to WAV
+        audio_filename = f"{video_id}.m4a"  # Updated to M4A
         audio_path = os.path.join(self.temp_dir, audio_filename)
         
         # Progress hook for yt-dlp
@@ -96,8 +96,8 @@ class AudioExtractor:
             'outtmpl': os.path.join(self.temp_dir, f'{video_id}.%(ext)s'),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',  # Use WAV first, then convert if needed
-                'preferredquality': '192',
+                'preferredcodec': 'm4a',  # Use M4A (AAC) for better compression
+                'preferredquality': '128',  # Lower quality for smaller file size
             }],
             'progress_hooks': [progress_hook],
             'quiet': False,
@@ -120,7 +120,52 @@ class AudioExtractor:
         except Exception as e:
             raise Exception(f"Unexpected error during download: {str(e)}")
     
-    def cleanup_temp_files(self):
+    def compress_audio_for_api(self, audio_path: str) -> str:
+        """Compress audio file to meet API size requirements."""
+        file_size = os.path.getsize(audio_path)
+        file_size_mb = file_size / (1024 * 1024)
+        
+        if file_size_mb <= 25:
+            return audio_path  # No compression needed
+        
+        print(f"Audio file ({file_size_mb:.1f}MB) is too large for API. Compressing...")
+        
+        import subprocess
+        
+        # Create compressed version
+        base_name = os.path.splitext(audio_path)[0]
+        compressed_path = f"{base_name}_compressed.m4a"
+        
+        # Use FFmpeg to compress with lower quality
+        cmd = [
+            'ffmpeg', '-i', audio_path,
+            '-acodec', 'aac',
+            '-b:a', '64k',  # Very low bitrate for small file size
+            '-ac', '1',     # Mono audio
+            '-ar', '22050', # Lower sample rate
+            '-y',           # Overwrite if exists
+            compressed_path
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            # Check new file size
+            new_size = os.path.getsize(compressed_path)
+            new_size_mb = new_size / (1024 * 1024)
+            print(f"Compressed to {new_size_mb:.1f}MB")
+            
+            if new_size_mb <= 25:
+                return compressed_path
+            else:
+                print("Warning: Compressed file still too large, using local transcription")
+                return audio_path
+                
+        except subprocess.CalledProcessError as e:
+            print(f"Compression failed: {e}")
+            return audio_path
+    
+    def cleanup(self):
         """Clean up temporary files."""
         try:
             import shutil
