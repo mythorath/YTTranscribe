@@ -6,6 +6,13 @@ import os
 from typing import Dict, List, Any, Optional
 import logging
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 try:
     import openai
     OPENAI_AVAILABLE = True

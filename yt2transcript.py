@@ -12,6 +12,14 @@ import shutil
 import sys
 from typing import Optional
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file from current directory
+except ImportError:
+    # python-dotenv not installed, continue without it
+    pass
+
 from src.audio_extractor import AudioExtractor
 from src.transcriber import Transcriber, TranscriptionError
 from src.file_formatter import FileFormatter

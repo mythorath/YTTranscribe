@@ -7,6 +7,13 @@ import tempfile
 from typing import Dict, List, Optional, Any
 import logging
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 try:
     import openai
     OPENAI_AVAILABLE = True
