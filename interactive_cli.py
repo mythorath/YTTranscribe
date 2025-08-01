@@ -58,15 +58,26 @@ def select_transcription_mode():
         else:
             print("❌ Please enter 1, 2, or 3")
 
-def select_api_model():
-    """Let user select API model if using API mode."""
-    print("\n🤖 Available OpenAI Whisper models:")
-    print("1. whisper-1 (Standard model)")
-    print("2. whisper-1 (Same as above - OpenAI only has one Whisper model)")
+def select_gpt_model():
+    """Let user select GPT model for summarization."""
+    print("\n� Available GPT models for summarization:")
+    print("1. 💡 gpt-3.5-turbo (Faster, cheaper)")
+    print("2. 🚀 gpt-4 (Better quality, more expensive)")
+    print("3. 🎯 gpt-4-turbo (Latest, balanced performance)")
     
-    print("\nNote: OpenAI currently offers whisper-1 as their production model.")
-    input("Press Enter to continue with whisper-1...")
-    return "whisper-1"
+    models = {
+        "1": "gpt-3.5-turbo",
+        "2": "gpt-4", 
+        "3": "gpt-4-turbo"
+    }
+    
+    while True:
+        choice = input("\nEnter choice (1-3): ").strip()
+        
+        if choice in models:
+            return models[choice]
+        else:
+            print("❌ Please enter 1, 2, or 3")
 
 def select_local_model():
     """Let user select local model size."""
@@ -112,14 +123,16 @@ def select_output_options():
         choice = input("Enter choice (1-2): ").strip()
         if choice == "1":
             summarize = True
+            gpt_model = select_gpt_model()
             break
         elif choice == "2":
             summarize = False
+            gpt_model = None  # No GPT model needed when not summarizing
             break
         else:
             print("❌ Please enter 1 or 2")
     
-    return output_dir, summarize
+    return output_dir, summarize, gpt_model
 
 def check_api_key():
     """Check if OpenAI API key is available."""
@@ -132,7 +145,7 @@ def check_api_key():
         print("   API modes will not work without an API key")
         return False
 
-def build_command(url, mode, model_size, output_dir, summarize):
+def build_command(url, mode, model_size, output_dir, summarize, gpt_model):
     """Build the command to execute."""
     cmd = ["python", "yt2transcript.py", url]
     
@@ -150,6 +163,8 @@ def build_command(url, mode, model_size, output_dir, summarize):
     # Add summary option
     if summarize:
         cmd.append("--summarize")
+        if gpt_model:  # Only add GPT model if one was selected
+            cmd.extend(["--gpt-model", gpt_model])
     
     return cmd
 
@@ -176,27 +191,25 @@ def main():
         
         # Model selection
         model_size = "base"  # default
-        api_model = "whisper-1"  # default
         
         if mode == "api":
             if not has_api_key:
                 print("\n❌ Cannot use API mode without OpenAI API key")
                 print("   Please set OPENAI_API_KEY environment variable")
                 sys.exit(1)
-            api_model = select_api_model()
+            print("\n🤖 API mode: Using whisper-1 model (OpenAI's standard Whisper model)")
         elif mode == "local":
             model_size = select_local_model()
         else:  # auto mode
             if has_api_key:
-                print("\n🔄 Auto mode: Will try API first, then fallback to local if needed")
-                api_model = select_api_model()
+                print("\n🔄 Auto mode: Will try API (whisper-1) first, then fallback to local if needed")
             model_size = select_local_model()
         
-        # Output options
-        output_dir, summarize = select_output_options()
+        # Output options (includes GPT model selection if summary requested)
+        output_dir, summarize, gpt_model = select_output_options()
         
         # Build and display command
-        cmd = build_command(url, mode, model_size, output_dir, summarize)
+        cmd = build_command(url, mode, model_size, output_dir, summarize, gpt_model)
         
         print("\n" + "=" * 60)
         print("🚀 Ready to process!")
@@ -206,9 +219,11 @@ def main():
         if mode in ["local", "auto"]:
             print(f"🏠 Local model: {model_size}")
         if mode in ["api", "auto"] and has_api_key:
-            print(f"🌐 API model: {api_model}")
+            print("🌐 API model: whisper-1")
         print(f"📁 Output: {output_dir}")
         print(f"🧠 Summary: {'Yes' if summarize else 'No'}")
+        if summarize:
+            print(f"🤖 GPT model: {gpt_model}")
         print()
         print(f"Command: {' '.join(cmd)}")
         print()
