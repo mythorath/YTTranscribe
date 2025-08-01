@@ -76,7 +76,10 @@ A powerful command-line tool for extracting audio from YouTube videos and transc
 ### Basic Usage
 
 ```bash
-# Basic transcription (local model)
+# Interactive mode (recommended for beginners)
+python interactive_cli.py
+
+# Direct command line usage
 python yt2transcript.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 # Use OpenAI API
@@ -88,6 +91,29 @@ python yt2transcript.py "https://youtu.be/dQw4w9WgXcQ" --summarize
 # Custom model size and output directory
 python yt2transcript.py "https://youtu.be/dQw4w9WgXcQ" --model-size small --output-dir ./my_transcripts
 ```
+
+## 🖥️ Interactive CLI
+
+For a user-friendly experience, use the interactive interface:
+
+```bash
+# Launch interactive mode
+python interactive_cli.py
+
+# Or use the launcher (Windows)
+start_interactive.bat
+
+# Or use the launcher (macOS/Linux)
+./start_interactive.sh
+```
+
+The interactive CLI provides:
+- 📥 **URL Input**: Guided YouTube URL entry with validation
+- 🎤 **Mode Selection**: Choose between Auto/API/Local transcription
+- 🤖 **Model Selection**: Pick the best model for your needs
+- 📁 **Output Options**: Customize directory and summary generation
+- 🔑 **API Key Detection**: Automatic OpenAI API key validation
+- ✅ **Command Preview**: See the exact command before execution
 
 ## 📋 Command-Line Options
 
